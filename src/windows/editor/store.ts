@@ -117,6 +117,8 @@ export interface LookParams {
   backgroundBlur: number;
   backgroundDarkness: number;
   backgroundScale: number;
+  compositeOffsetX: number;
+  compositeOffsetY: number;
 }
 
 /** Face-cam PiP overlay (Laravel `faceCam*` fields, desktop-shaped). */

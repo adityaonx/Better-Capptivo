@@ -152,8 +152,6 @@ export async function createPixiFrameCompositor(
   const blurSprites: Sprite[] = [];
 
   camera.addChild(
-    backdrop,
-    background.sprite,
     recordingShadow.sprite,
     screenSprite,
     screenMask.graphics,
@@ -163,6 +161,8 @@ export async function createPixiFrameCompositor(
     cursorOverlay.container,
   );
   stage.addChild(
+    backdrop,
+    background.sprite,
     camera,
     faceRoot,
     captionsLayer.sprite,
@@ -407,6 +407,8 @@ export async function createPixiFrameCompositor(
           scale: zoomScale,
           targetScale: zoomTargetScale,
         }),
+        (look as any).compositeOffsetX ?? 0,
+        (look as any).compositeOffsetY ?? 0,
       );
     } else {
       screenSprite.texture = Texture.EMPTY;
@@ -455,9 +457,9 @@ export async function createPixiFrameCompositor(
     }
   }
 
-  function setCameraTransform(transform: CameraTransform): void {
+  function setCameraTransform(transform: CameraTransform, extraX = 0, extraY = 0): void {
     camera.scale.set(transform.scale);
-    camera.position.set(transform.x, transform.y);
+    camera.position.set(transform.x + extraX, transform.y + extraY);
   }
 
   function updateRecordingShadow(

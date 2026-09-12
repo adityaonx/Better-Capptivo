@@ -69,6 +69,7 @@ export function PreviewStage({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef<HTMLVideoElement | null>(null);
+  const dragState = useRef({ isDragging: false, lastX: 0, lastY: 0 });
   /** Requests a single paused-state repaint; assigned by the render effect. */
   const requestPaintRef = useRef<() => void>(() => {});
   const compositorRef = useRef<FrameCompositor | null>(null);
@@ -699,17 +700,55 @@ export function PreviewStage({
     });
   }, []);
 
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    dragState.current = { isDragging: true, lastX: e.clientX, lastY: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current.isDragging) return;
+    const dx = e.clientX - dragState.current.lastX;
+    const dy = e.clientY - dragState.current.lastY;
+    dragState.current.lastX = e.clientX;
+    dragState.current.lastY = e.clientY;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    // Convert DOM pixels → stage pixels
+    const stageToDomRatio = stage.width / rect.width;
+    const dxStage = dx * stageToDomRatio;
+    const dyStage = dy * stageToDomRatio;
+
+    const currentLook = useEditorStore.getState().look;
+    const currentX = (currentLook as any).compositeOffsetX ?? 0;
+    const currentY = (currentLook as any).compositeOffsetY ?? 0;
+
+    // Drag right → MacBook moves right (positive X)
+    useEditorStore.getState().setLook("compositeOffsetX" as any, currentX + dxStage);
+    useEditorStore.getState().setLook("compositeOffsetY" as any, currentY + dyStage);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragState.current.isDragging = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-3 overflow-hidden p-4">
       <div className="@container-size relative min-h-0 flex-1">
         <div className="absolute inset-0 flex items-center justify-center">
           <div
-            className="relative overflow-hidden rounded-xl border border-border bg-black"
+            className="relative overflow-hidden rounded-xl border border-border bg-black cursor-grab active:cursor-grabbing"
             style={{
               aspectRatio: `${stage.width} / ${stage.height}`,
               width: `min(100cqw, calc(100cqh * ${stage.width} / ${stage.height}))`,
               maxHeight: "100cqh",
+              touchAction: "none",
             }}
+            onPointerDownCapture={handlePointerDown}
+            onPointerMoveCapture={handlePointerMove}
+            onPointerUpCapture={handlePointerUp}
+            onPointerCancelCapture={handlePointerUp}
           >
             <div ref={hostRef} className="block h-full w-full" />
             {playbackUrl === null && proxyPending ? (

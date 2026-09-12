@@ -49,6 +49,8 @@ export const DEFAULT_LOOK = {
   backgroundBlur: 9,
   backgroundDarkness: 15,
   backgroundScale: 3,
+  compositeOffsetX: 0,
+  compositeOffsetY: 0,
 } as const;
 
 /** H.264 hardware encoders require macroblock-aligned (multiple of 16) dims. */
