@@ -113,10 +113,10 @@ fn default_true() -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum QualityPreset {
-    /// ~8 Mbps @ 1080p equivalent — the default.
-    #[default]
+    /// ~8 Mbps @ 1080p — good balance of quality and file size.
     Balanced,
-    /// ~16 Mbps — crisper, larger files.
+    /// ~16 Mbps @ 1080p — crisper text and motion, larger files. Default.
+    #[default]
     High,
 }
 
@@ -126,12 +126,12 @@ impl QualityPreset {
     pub fn target_bitrate(self, width: u32, height: u32) -> u64 {
         let pixels = (width as u64) * (height as u64);
         let per_mpixel = match self {
-            QualityPreset::Balanced => 4_000_000,
-            QualityPreset::High => 8_000_000,
+            QualityPreset::Balanced => 8_000_000,   // ~8 Mbps at 1080p
+            QualityPreset::High => 16_000_000,      // ~16 Mbps at 1080p
         };
         // Scale off a 1080p (≈2.07 Mpixel) baseline, clamped to a sane range.
         let scaled = per_mpixel * pixels / 2_073_600;
-        scaled.clamp(2_000_000, 40_000_000)
+        scaled.clamp(4_000_000, 80_000_000)
     }
 }
 

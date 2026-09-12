@@ -127,7 +127,7 @@ interface RecorderStore {
 const DEFAULT_OPTIONS: CaptureOptions = {
   showCursor: true,
   captureSystemAudio: false,
-  quality: "balanced",
+  quality: "high",
 };
 
 let subscribed = false;

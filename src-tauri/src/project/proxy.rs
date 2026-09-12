@@ -12,10 +12,11 @@ use std::path::{Path, PathBuf};
 /// Proxy filename inside a project directory.
 pub const PROXY_FILE: &str = "proxy.mp4";
 
-/// The proxy fits inside this box (long edge), preserving aspect. 720p-class is
-/// the sweet spot: far cheaper to decode/seek than 1080p+/4K originals, and the
-/// compositor references 1920 for the actual export regardless.
-const PROXY_LONG_EDGE: u32 = 1280;
+/// The proxy fits inside this box (long edge), preserving aspect. 1920 covers
+/// 1080p recordings at full resolution and Retina (2560p) at 75%, keeping
+/// zoom artifacts acceptable even at 2–3x. Higher than this and proxy
+/// transcoding time starts to rival just opening the original.
+const PROXY_LONG_EDGE: u32 = 1920;
 
 /// Absolute proxy path for a project directory.
 pub fn path_in(dir: &Path) -> PathBuf {
@@ -144,7 +145,7 @@ fn transcode(
         .args(["-threads", &threads])
         .args([
             "-b:v",
-            "2500k",
+            "8000k",  // 8 Mbps — keeps text sharp at 1920px for screen content
             "-g",
             "30", // frequent keyframes → snappy scrubbing
             "-c:a",

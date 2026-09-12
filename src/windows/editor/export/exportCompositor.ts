@@ -305,6 +305,7 @@ export async function createExportCompositorFromMedia(
     aspectRatioPresetId,
     backgroundType,
     sourceVideoSize,
+    selectedMockupId,
     segments: storeSegments,
   } = useEditorStore.getState();
 
@@ -376,6 +377,7 @@ export async function createExportCompositorFromMedia(
         aspectRatioPresetId,
         backgroundType,
         sourceVideoSize,
+        mockupId: selectedMockupId ?? undefined,
         // Baked keyframes go straight to the camera: already recording-rect NDC
         // (fixed-rect centres are mapped from stage NDC via composition layout).
         zoomScale: zoom.scale,

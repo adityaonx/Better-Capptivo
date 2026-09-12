@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { LANGUAGES } from "@/lib/i18n";
 import { useI18n } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -723,13 +723,15 @@ function SettingsMenu({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t, language, setLanguage } = useI18n();
+  const quality = useRecorderStore((s) => s.options.quality);
+  const setOption = useRecorderStore((s) => s.setOption);
 
   return (
     <RecorderMenu
       open={open}
       onOpenChange={onOpenChange}
       align="end"
-      className="w-44"
+      className="w-48"
       trigger={
         <Button
           type="button"
@@ -746,6 +748,22 @@ function SettingsMenu({
         </Button>
       }
     >
+      <p className="mb-1 px-2 pt-0.5 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+        Quality
+      </p>
+      <SelectMenuItem
+        selected={quality === "balanced"}
+        onSelect={() => setOption("quality", "balanced")}
+      >
+        Balanced (~8 Mbps)
+      </SelectMenuItem>
+      <SelectMenuItem
+        selected={quality === "high"}
+        onSelect={() => setOption("quality", "high")}
+      >
+        High (~16 Mbps)
+      </SelectMenuItem>
+      <DropdownMenuSeparator />
       <p className="mb-1 px-2 pt-0.5 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
         {t("recorder.language")}
       </p>
