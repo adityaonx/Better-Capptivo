@@ -106,6 +106,7 @@ export const ar: Record<TranslationKey, string> = {
   "encoding.quality": "جودة",
 
   "look.background": "الخلفية",
+  "bg.mockup": "Mockup",
   "bg.image": "صورة",
   "bg.gradient": "تدرج",
   "bg.color": "لون",
@@ -254,6 +255,7 @@ export const ar: Record<TranslationKey, string> = {
   "hint.moreShort": "مزيد من المعلومات",
 
   "config.appearance.title": "المظهر",
+  "look.bgScale": "Wallpaper scale",
   "config.appearance.desc": "اختر مظهر التطبيق.",
   "config.theme.light": "فاتح",
   "config.theme.dark": "داكن",

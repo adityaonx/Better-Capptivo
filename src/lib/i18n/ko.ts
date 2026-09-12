@@ -105,6 +105,7 @@ export const ko: Record<TranslationKey, string> = {
   "encoding.quality": "품질",
 
   "look.background": "배경",
+  "bg.mockup": "Mockup",
   "bg.image": "이미지",
   "bg.gradient": "그라데이션",
   "bg.color": "색상",
@@ -250,6 +251,7 @@ export const ko: Record<TranslationKey, string> = {
   "hint.moreShort": "자세한 정보",
 
   "config.appearance.title": "모양",
+  "look.bgScale": "Wallpaper scale",
   "config.appearance.desc": "앱 모양을 선택하세요.",
   "config.theme.light": "라이트",
   "config.theme.dark": "다크",

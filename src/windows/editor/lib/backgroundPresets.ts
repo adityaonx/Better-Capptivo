@@ -5,7 +5,7 @@
  * the foundation.)
  */
 
-export type BackgroundType = "image" | "gradient" | "color";
+export type BackgroundType = "image" | "gradient" | "color" | "mockup";
 
 export interface BackgroundPreset {
   id: string;
@@ -172,6 +172,7 @@ export const BACKGROUND_COLORS = [
 ];
 
 export const BACKGROUND_TYPE_TABS: { id: BackgroundType; label: string }[] = [
+  { id: "mockup", label: "Mockup" },
   { id: "image", label: "Image" },
   { id: "gradient", label: "Gradient" },
   { id: "color", label: "Color" },

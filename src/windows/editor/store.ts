@@ -1,3 +1,4 @@
+import { MOCKUP_PRESETS } from "./lib/mockupPresets";
 /**
  * Editor store — look params + playback + trim/zoom timeline (web-compatible shapes).
  * Zoom keyframes live in `lib/zoomCache.ts` so the rAF loop never rebuilds springs.
@@ -115,6 +116,7 @@ export interface LookParams {
   recordingShadowIntensity: number;
   backgroundBlur: number;
   backgroundDarkness: number;
+  backgroundScale: number;
 }
 
 /** Face-cam PiP overlay (Laravel `faceCam*` fields, desktop-shaped). */
@@ -347,6 +349,7 @@ interface EditorStore {
 
   backgroundType: BackgroundType;
   selectedBackground: string | null;
+  selectedMockupId: string | null;
   backgroundImage: HTMLImageElement | null;
   customBackgroundColor: string;
   customGradientStart: string;
@@ -396,6 +399,7 @@ interface EditorStore {
   init: (projectId: string) => Promise<void>;
   onVideoLoaded: (width: number, height: number, duration: number) => void;
   setBackgroundType: (type: BackgroundType) => void;
+  setMockupId: (id: string | null) => void;
   selectBackground: (preset: BackgroundPreset) => void;
   /** Clear the composition background (clicking the active swatch again). */
   clearBackground: () => void;
@@ -616,6 +620,7 @@ function enqueuePersist(get: () => EditorStore): void {
     cursorSettings,
     faceCam,
     aspectRatioPresetId,
+    selectedMockupId,
   } = get();
   if (!projectId) return;
   const editorState = {
@@ -629,6 +634,7 @@ function enqueuePersist(get: () => EditorStore): void {
     cursorSettings,
     faceCam,
     aspectRatioPresetId,
+    mockupId: selectedMockupId,
     background: snapshotBackground(get()),
   };
   persistChain = persistChain
@@ -706,6 +712,7 @@ function parseEditorState(raw: unknown, duration: number): {
   cursorSettings?: Partial<CursorSettings>;
   faceCam?: FaceCamParams;
   aspectRatioPresetId?: AspectRatioPresetId;
+  mockupId?: string | null;
   background?: PersistedBackground;
 } | null {
   if (!raw || typeof raw !== "object") return null;
@@ -753,6 +760,7 @@ function parseEditorState(raw: unknown, duration: number): {
     cursorSettings,
     faceCam,
     aspectRatioPresetId,
+    mockupId: typeof data.mockupId === "string" ? data.mockupId : null,
     background: parsePersistedBackground(data.background),
   };
 }
@@ -775,6 +783,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   backgroundType: "image",
   selectedBackground: null,
+  selectedMockupId: null,
   backgroundImage: null,
   customBackgroundColor: "#22C55E",
   customGradientStart: "#8BC6EC",
@@ -857,7 +866,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       faceCam: { ...DEFAULT_FACE_CAM },
       aspectRatioPresetId: DEFAULT_ASPECT_RATIO_PRESET_ID,
       backgroundType: "image",
-      selectedBackground: null,
+      selectedBackground: "/background-images/desk-1.jpg",
+      selectedMockupId: "macbook-flat",
       backgroundImage: null,
       customBackgroundColor: "#22C55E",
       customGradientStart: "#8BC6EC",
@@ -961,17 +971,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           (p) => p.id === bg.presetId,
         );
         if (preset) get().selectBackground(preset);
-        else {
-          const first = get().imagePresets[0];
-          if (first) get().selectBackground(first);
-        }
       } else if (bg.selection === "custom-image" && bg.presetId) {
         const custom = get().customImageBackgrounds.find((p) => p.id === bg.presetId);
         if (custom) get().selectBackground(custom);
-        else {
-          const first = get().imagePresets[0];
-          if (first) get().selectBackground(first);
-        }
       } else if (bg.selection === "custom-color") {
         get().setCustomColor(bg.customColor);
       } else if (bg.selection === "custom-gradient") {
@@ -984,9 +986,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         customGradientEnd: bg.customGradientEnd,
         customGradientAngle: bg.customGradientAngle,
       });
-    } else {
-      const first = get().imagePresets[0];
-      if (first) get().selectBackground(first);
+    }
+
+    if (parsed?.mockupId) {
+      get().setMockupId(parsed.mockupId);
     }
 
     invalidateZoomKeyframesCache();
@@ -1028,6 +1031,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setBackgroundType(type) {
     set({ backgroundType: type });
     schedulePersist(get);
+  },
+
+  setMockupId(id) {
+    if (!id) {
+      set({ selectedMockupId: null });
+      schedulePersist(get);
+      return;
+    }
+    
+    const preset = MOCKUP_PRESETS.find((p: any) => p.id === id);
+    if (!preset) return;
+
+    set({ selectedMockupId: id });
+    schedulePersist(get);
+    
+    // Preload the image so it caches and we don't have to worry about repaints
+    // Since we don't store it in the state anymore, we just trigger a dummy look update
+    // if the video is paused so it repaints.
+    loadImage(preset.src).then(() => {
+      set((s) => ({ look: { ...s.look } }));
+    }).catch(() => undefined);
   },
 
   selectBackground(preset) {

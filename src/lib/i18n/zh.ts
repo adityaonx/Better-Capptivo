@@ -101,6 +101,7 @@ export const zh: Record<TranslationKey, string> = {
   "encoding.quality": "高质量",
 
   "look.background": "背景",
+  "bg.mockup": "Mockup",
   "bg.image": "图片",
   "bg.gradient": "渐变",
   "bg.color": "纯色",
@@ -242,6 +243,7 @@ export const zh: Record<TranslationKey, string> = {
   "hint.moreShort": "更多信息",
 
   "config.appearance.title": "外观",
+  "look.bgScale": "Wallpaper scale",
   "config.appearance.desc": "选择应用外观。",
   "config.theme.light": "浅色",
   "config.theme.dark": "深色",

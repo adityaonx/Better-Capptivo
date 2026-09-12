@@ -29,6 +29,7 @@ export interface LookState {
 export interface RenderFrameInputs {
   width: number;
   height: number;
+  mockupId?: string | null;
   video: HTMLVideoElement | null;
   /** Optional face-cam track composited on top of the screen recording. */
   cameraVideo?: HTMLVideoElement | null;
@@ -63,7 +64,7 @@ export interface RenderFrameInputs {
   recordingMetadata?: RecordingMetadata | null;
   /** Composition context for layout rules. */
   aspectRatioPresetId?: AspectRatioPresetId;
-  backgroundType?: "image" | "gradient" | "color";
+  backgroundType?: "image" | "gradient" | "color" | "mockup";
   sourceVideoSize?: { width: number; height: number } | null;
 }
 

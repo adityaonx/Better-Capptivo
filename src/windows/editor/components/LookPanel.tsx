@@ -32,6 +32,7 @@ const selectedRing = "border-primary ring-2 ring-primary/40";
 const idleRing = "border-border hover:border-foreground/30";
 
 const BG_TAB_LABEL_KEY: Record<BackgroundType, TranslationKey> = {
+  mockup: "bg.mockup",
   image: "bg.image",
   gradient: "bg.gradient",
   color: "bg.color",
@@ -82,6 +83,7 @@ export function LookPanel({ visible = true }: { visible?: boolean }) {
           ))}
         </div>
 
+        {backgroundType === "mockup" && <MockupGrid />}
         {backgroundType === "image" && <ImageGrid />}
         {backgroundType === "gradient" && <GradientGrid />}
         {backgroundType === "color" && <ColorGrid />}
@@ -506,6 +508,74 @@ function BackgroundEffects() {
             onValueChange={([v]) => setLook("backgroundDarkness", v ?? 0)}
           />
         </div>
+        <div className="space-y-2">
+          <FieldLabel htmlFor="bg-scale">
+            {t("look.bgScale")}
+          </FieldLabel>
+          <Slider
+            id="bg-scale"
+            min={1}
+            max={10}
+            step={0.1}
+            value={[look.backgroundScale ?? 3]}
+            onValueChange={([v]) => setLook("backgroundScale", v ?? 3)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockupGrid() {
+  const { t } = useI18n();
+  const selected = useEditorStore((s) => s.selectedMockupId);
+  const select = useEditorStore((s) => s.setMockupId);
+  
+  // Single MacBook Pro flat preset
+  const presets = [
+    {
+      id: "macbook-flat",
+      label: "MacBook Pro",
+      previewCss: "url('/mockups/macbook-flat.svg')",
+    },
+  ];
+
+  return (
+    <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+      <div className="grid grid-cols-4 gap-2">
+        <button
+          key="none"
+          type="button"
+          onClick={() => select(null)}
+          title="No Mockup"
+          className={cn(
+            "relative aspect-video overflow-hidden rounded-md border-2 bg-muted transition-all",
+            !selected ? selectedRing : idleRing,
+          )}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xs font-medium opacity-50">None</span>
+          </div>
+        </button>
+
+        {presets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => select(preset.id)}
+            title={preset.label}
+            className={cn(
+              "relative aspect-video overflow-hidden rounded-md border-2 bg-muted transition-all",
+              selected === preset.id ? selectedRing : idleRing,
+            )}
+          >
+            <span
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: preset.previewCss }}
+              aria-hidden
+            />
+          </button>
+        ))}
       </div>
     </div>
   );

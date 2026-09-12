@@ -50,12 +50,43 @@ import {
 } from "./gpuLifecycle";
 import { ComposeProfiler } from "./composeProfiler";
 import { CanvasLayer } from "./pixi/canvasLayer";
+import { MOCKUP_PRESETS } from "../lib/mockupPresets";
 import { OutputSurface } from "./pixi/outputSurface";
 import { PixiCursorOverlay } from "./pixi/pixiCursor";
 import { RoundedMask } from "./pixi/roundedMask";
 import { ShadowLayer } from "./pixi/shadowLayer";
 import { SourceTexture } from "./pixi/sourceTexture";
 import { decodedImageFor } from "./decodedFrame";
+import { useEditorStore } from "../store";
+
+const mockupTextureCache = new Map<string, Texture | null>();
+
+function getMockupTexture(src: string, width: number, height: number): Texture | null {
+  const cached = mockupTextureCache.get(src);
+  if (cached !== undefined) return cached;
+
+  mockupTextureCache.set(src, null);
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(img, 0, 0, width, height);
+      const tex = Texture.from(canvas);
+      (tex as any).label = src;
+      mockupTextureCache.set(src, tex);
+      // Trigger a repaint in the editor once the texture is ready
+      useEditorStore.setState((s: any) => ({ look: { ...s.look } }));
+    }
+  };
+  img.src = src;
+
+  return null;
+}
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -89,7 +120,7 @@ export async function createPixiFrameCompositor(
 
   const stage = new Container({ label: "stage" });
 
-  const backdrop = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  const backdrop = new Graphics().rect(-10, -10, 21, 21).fill(0x000000);
   backdrop.scale.set(width, height);
 
   const background = new CanvasLayer("background");
@@ -101,6 +132,8 @@ export async function createPixiFrameCompositor(
   const screenSprite = new Sprite();
   const screenMask = new RoundedMask();
   screenSprite.mask = screenMask.graphics;
+  const mockupSprite = new Sprite();
+  mockupSprite.visible = false;
 
   /** Recording-anchored subtree — zoom is a transform on this container. */
   const camera = new Container({ label: "camera" });
@@ -119,16 +152,17 @@ export async function createPixiFrameCompositor(
   const blurSprites: Sprite[] = [];
 
   camera.addChild(
+    backdrop,
+    background.sprite,
     recordingShadow.sprite,
     screenSprite,
     screenMask.graphics,
     blurLayer,
     blurMask.graphics,
+    mockupSprite,
     cursorOverlay.container,
   );
   stage.addChild(
-    backdrop,
-    background.sprite,
     camera,
     faceRoot,
     captionsLayer.sprite,
@@ -199,74 +233,163 @@ export async function createPixiFrameCompositor(
 
     setCameraTransform(CAMERA_IDENTITY);
 
+    const bgScale = look.backgroundScale ?? 3;
+    const bgWidth = w * bgScale;
+    const bgHeight = h * bgScale;
+    const bgX = -(bgWidth - w) / 2;
+    const bgY = -(bgHeight - h) / 2;
+
     background.update({
       key: backgroundImage
-        ? `${imageId(backgroundImage)}|${w}x${h}|${look.backgroundBlur}|${look.backgroundDarkness}`
+        ? `${imageId(backgroundImage)}|${bgWidth}x${bgHeight}|${look.backgroundBlur}|${look.backgroundDarkness}`
         : null,
-      x: 0,
-      y: 0,
-      width: w,
-      height: h,
-      draw: (ctx) =>
+      x: bgX,
+      y: bgY,
+      width: bgWidth,
+      height: bgHeight,
+      draw: (ctx) => {
+        if (!backgroundImage) return;
+        
         drawBackgroundLayer(
           ctx,
           backgroundImage as CanvasImageSource,
-          w,
-          h,
+          bgWidth,
+          bgHeight,
           look.backgroundBlur,
           look.backgroundDarkness,
-        ),
+        );
+      },
     });
-    backdrop.visible = !backgroundImage;
+    backdrop.visible = inputs.backgroundType === "mockup";
     profiler.mark("background");
 
     const screenSize = screenTexture.bind(decodedImageFor(inputs.video));
     profiler.mark("screenUpload");
 
     if (screenSize) {
-      const hasSelectedBackground = backgroundImage !== null;
-      const hasImageBackground =
-        hasSelectedBackground && (inputs.backgroundType ?? "image") === "image";
-      const { sourceAspect, devicePadding: basePadding } =
-        resolveRecordingLayoutParams({
-          presetId: inputs.aspectRatioPresetId ?? "recording",
-          sourceAspect: inputs.sourceAspect,
-          sourceVideoSize: inputs.sourceVideoSize ?? {
-            width: screenSize.width,
-            height: screenSize.height,
-          },
-          hasSelectedBackground,
-          hasImageBackground,
-          devicePadding: look.devicePadding,
-          screenContentCrop: crop,
-        });
-      const { video: rect } = getCompositionLayout(
-        sourceAspect,
-        w,
-        h,
-        basePadding,
-      );
+      const isMockup = !!inputs.mockupId;
+      const preset = isMockup ? MOCKUP_PRESETS.find((p) => p.id === inputs.mockupId) : null;
+
+      let rect: Rect;
+      let mockupRect: Rect | null = null;
+
+      if (preset) {
+        // Mockup dictates the layout. We fit the mockup to the stage with device padding,
+        // and map the video to the screen hole.
+        const mockupAspect = preset.width / preset.height;
+        mockupRect = getCompositionLayout(mockupAspect, w, h, look.devicePadding).video;
+
+        const tl = preset.corners[0];
+        const br = preset.corners[2];
+        const scaleX = mockupRect.width / preset.width;
+        const scaleY = mockupRect.height / preset.height;
+
+        const holeRect = {
+          x: mockupRect.x + tl.x * scaleX,
+          y: mockupRect.y + tl.y * scaleY,
+          width: (br.x - tl.x) * scaleX,
+          height: (br.y - tl.y) * scaleY,
+        };
+
+        // object-fit: cover to preserve aspect ratio while filling the hole
+        const holeAspect = holeRect.width / holeRect.height;
+        let videoWidth = holeRect.width;
+        let videoHeight = holeRect.height;
+        if (inputs.sourceAspect > holeAspect) {
+          // Video is wider than hole -> match height, scale width
+          videoHeight = holeRect.height;
+          videoWidth = holeRect.height * inputs.sourceAspect;
+        } else {
+          // Video is taller than hole -> match width, scale height
+          videoWidth = holeRect.width;
+          videoHeight = holeRect.width / inputs.sourceAspect;
+        }
+        
+        // Center horizontally, but align flush to the TOP vertically.
+        // This prevents the menu bar from being clipped by the top bezel,
+        // while the horizontal bleed hides the native rounded corners of the video.
+        const videoX = holeRect.x - (videoWidth - holeRect.width) / 2;
+        const videoY = holeRect.y;
+
+        // Add a tiny 2px uniform bleed to ensure no sub-pixel gaps 
+        // or extreme edge rounding is visible on any side.
+        const bleed = 2;
+        rect = {
+          x: videoX - bleed,
+          y: videoY - bleed,
+          width: videoWidth + bleed * 2,
+          height: videoHeight + bleed * 2,
+        };
+        
+        (inputs as any)._holeRect = holeRect;
+      } else {
+        const hasSelectedBackground = backgroundImage !== null;
+        const hasImageBackground =
+          hasSelectedBackground && (inputs.backgroundType ?? "image") === "image";
+        const { sourceAspect, devicePadding: basePadding } =
+          resolveRecordingLayoutParams({
+            presetId: inputs.aspectRatioPresetId ?? "recording",
+            sourceAspect: inputs.sourceAspect,
+            sourceVideoSize: inputs.sourceVideoSize ?? {
+              width: screenSize.width,
+              height: screenSize.height,
+            },
+            hasSelectedBackground,
+            hasImageBackground,
+            devicePadding: look.devicePadding,
+            screenContentCrop: crop,
+          });
+        rect = getCompositionLayout(sourceAspect, w, h, basePadding).video;
+      }
       const radius = Math.max(
         0,
         Math.min(look.cornerRadius, Math.min(rect.width, rect.height) / 2),
       );
 
-      updateRecordingShadow(rect, radius, look, !!backgroundImage);
+      const isMockupMode = !!inputs.mockupId;
+      updateRecordingShadow(rect, radius, look, !!backgroundImage && !isMockupMode);
       profiler.mark("shadow");
 
       const content = crop
         ? contentRectPixelsFromCrop(screenSize.width, screenSize.height, crop)
         : { ox: 0, oy: 0, rw: screenSize.width, rh: screenSize.height };
 
-      screenSprite.visible = true;
       scratchCrop.x = content.ox;
       scratchCrop.y = content.oy;
       scratchCrop.width = content.rw;
       scratchCrop.height = content.rh;
-      screenSprite.texture = screenTexture.crop(scratchCrop);
-      screenSprite.position.set(rect.x, rect.y);
-      screenSprite.setSize(rect.width, rect.height);
-      screenMask.set(rect.x, rect.y, rect.width, rect.height, radius);
+      const croppedTexture = screenTexture.crop(scratchCrop);
+
+      if (preset && mockupRect) {
+        // ── Screen recording renders exactly the same as normal mode ──
+        // All zoom/pan/cursor/blur continue working because rect is exactly the video bounds.
+        screenSprite.visible = true;
+        screenSprite.texture = croppedTexture;
+        screenSprite.position.set(rect.x, rect.y);
+        screenSprite.setSize(rect.width, rect.height);
+
+        const hr = (inputs as any)._holeRect || rect;
+        screenMask.set(hr.x - 4, hr.y - 4, hr.width + 8, hr.height + 8, 0);
+        screenSprite.alpha = 1;
+
+        // Load SVG texture by rasterizing it to a canvas first (avoids WebGL crash on WKWebView)
+        const tex = getMockupTexture(preset.src, preset.width, preset.height);
+        if (tex) {
+          mockupSprite.texture = tex;
+          mockupSprite.visible = true;
+          mockupSprite.position.set(mockupRect.x, mockupRect.y);
+          mockupSprite.setSize(mockupRect.width, mockupRect.height);
+        } else {
+          mockupSprite.visible = false;
+        }
+      } else {
+        mockupSprite.visible = false;
+        screenSprite.visible = true;
+        screenSprite.texture = croppedTexture;
+        screenSprite.position.set(rect.x, rect.y);
+        screenSprite.setSize(rect.width, rect.height);
+        screenMask.set(rect.x, rect.y, rect.width, rect.height, radius);
+      }
       profiler.mark("screenGeometry");
 
       updateBlurRegions(inputs, screenSize, content, rect, radius);
@@ -561,6 +684,7 @@ export async function createPixiFrameCompositor(
       // otherwise pin GPU memory for the life of the editor session.
       releaseAllPackSlots();
       screenTexture.destroy();
+      mockupSprite.destroy();
       faceTexture.destroy();
       background.destroy();
       cursorOverlay.destroy();

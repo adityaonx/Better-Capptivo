@@ -106,6 +106,7 @@ export const en = {
   "encoding.quality": "Quality",
 
   "look.background": "Background",
+  "bg.mockup": "Device",
   "bg.image": "Image",
   "bg.gradient": "Gradient",
   "bg.color": "Color",
@@ -250,6 +251,7 @@ export const en = {
   "hint.moreShort": "More information",
 
   "config.appearance.title": "Appearance",
+  "look.bgScale": "Wallpaper scale",
   "config.appearance.desc": "Choose how the app looks.",
   "config.theme.light": "Light",
   "config.theme.dark": "Dark",

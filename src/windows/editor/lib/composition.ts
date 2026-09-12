@@ -48,6 +48,7 @@ export const DEFAULT_LOOK = {
   recordingShadowIntensity: 75,
   backgroundBlur: 9,
   backgroundDarkness: 15,
+  backgroundScale: 3,
 } as const;
 
 /** H.264 hardware encoders require macroblock-aligned (multiple of 16) dims. */

@@ -105,6 +105,7 @@ export const ja: Record<TranslationKey, string> = {
   "encoding.quality": "高品質",
 
   "look.background": "背景",
+  "bg.mockup": "Mockup",
   "bg.image": "画像",
   "bg.gradient": "グラデーション",
   "bg.color": "色",
@@ -250,6 +251,7 @@ export const ja: Record<TranslationKey, string> = {
   "hint.moreShort": "詳細",
 
   "config.appearance.title": "外観",
+  "look.bgScale": "Wallpaper scale",
   "config.appearance.desc": "アプリの見た目を選びます。",
   "config.theme.light": "ライト",
   "config.theme.dark": "ダーク",

@@ -278,6 +278,7 @@ export function PreviewStage({
       const {
         sourceAspect,
         backgroundImage,
+        selectedMockupId,
         look,
         zoomFragments,
         recordingMetadata,
@@ -346,6 +347,7 @@ export function PreviewStage({
             look,
             aspectRatioPresetId,
             backgroundType,
+            mockupId: selectedMockupId,
             sourceVideoSize,
             zoomScale: zoom.scale,
             zoomFocus: { x: zoom.x, y: zoom.y },
@@ -561,6 +563,7 @@ export function PreviewStage({
     ): boolean =>
       next.sourceAspect !== prev.sourceAspect ||
       next.backgroundImage !== prev.backgroundImage ||
+      next.selectedMockupId !== prev.selectedMockupId ||
       next.look !== prev.look ||
       next.zoomFragments !== prev.zoomFragments ||
       next.recordingMetadata !== prev.recordingMetadata ||

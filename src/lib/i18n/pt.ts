@@ -106,6 +106,7 @@ export const pt: Record<TranslationKey, string> = {
   "encoding.quality": "Qualidade",
 
   "look.background": "Fundo",
+  "bg.mockup": "Mockup",
   "bg.image": "Imagem",
   "bg.gradient": "Gradiente",
   "bg.color": "Cor",
@@ -253,6 +254,7 @@ export const pt: Record<TranslationKey, string> = {
   "hint.moreShort": "Mais informação",
 
   "config.appearance.title": "Aparência",
+  "look.bgScale": "Wallpaper scale",
   "config.appearance.desc": "Escolha o aspeto da aplicação.",
   "config.theme.light": "Claro",
   "config.theme.dark": "Escuro",
