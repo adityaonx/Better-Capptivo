@@ -15,6 +15,7 @@ import {
   findSegmentIndexAtTime,
   getNextPlayableTime,
   preloadCursorAssets,
+  getCompositionLayout,
 } from "@/engine";
 import { useEditorStore } from "../store";
 import { resolveZoomReactiveState } from "../render/renderFrame";
@@ -59,6 +60,7 @@ import {
   probeMediaSize,
 } from "../lib/mediaBlobUrl";
 import { useI18n } from "@/lib/settings";
+import { MOCKUP_PRESETS } from "../lib/mockupPresets";
 
 /** The hidden <video> lives here but is owned by the parent so the full-width
  *  timeline (a sibling, not a child) can seek it too. */
@@ -69,7 +71,13 @@ export function PreviewStage({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef<HTMLVideoElement | null>(null);
-  const dragState = useRef({ isDragging: false, lastX: 0, lastY: 0 });
+  const canvasWrapRef = useRef<HTMLDivElement | null>(null);
+  const dragState = useRef<{
+    isDragging: boolean;
+    mode: "wallpaper" | "macbook";
+    lastX: number;
+    lastY: number;
+  }>({ isDragging: false, mode: "wallpaper", lastX: 0, lastY: 0 });
   /** Requests a single paused-state repaint; assigned by the render effect. */
   const requestPaintRef = useRef<() => void>(() => {});
   const compositorRef = useRef<FrameCompositor | null>(null);
@@ -700,37 +708,99 @@ export function PreviewStage({
     });
   }, []);
 
+  /** Returns the MacBook bounding rect in stage coordinates, or null if no mockup active. */
+  const getMacbookStageRect = () => {
+    const storeState = useEditorStore.getState();
+    const mockupId = storeState.selectedMockupId;
+    if (!mockupId) return null;
+    const preset = MOCKUP_PRESETS.find((p) => p.id === mockupId);
+    if (!preset) return null;
+    const look = storeState.look;
+    const mockupAspect = preset.width / preset.height;
+    const mockupRect = getCompositionLayout(mockupAspect, stage.width, stage.height, look.devicePadding).video;
+    const offsetX = (look as any).compositeOffsetX ?? 0;
+    const offsetY = (look as any).compositeOffsetY ?? 0;
+    return {
+      x: mockupRect.x + offsetX,
+      y: mockupRect.y + offsetY,
+      width: mockupRect.width,
+      height: mockupRect.height,
+    };
+  };
+
+  /** Returns true if (stageX, stageY) is inside the MacBook rect. */
+  const isInsideMacbook = (stageX: number, stageY: number) => {
+    const r = getMacbookStageRect();
+    if (!r) return false;
+    return stageX >= r.x && stageX <= r.x + r.width && stageY >= r.y && stageY <= r.y + r.height;
+  };
+
+  /** Update the cursor on the canvas wrapper without causing a React re-render. */
+  const updateCursorStyle = (clientX: number, clientY: number) => {
+    const wrap = canvasWrapRef.current;
+    if (!wrap || dragState.current.isDragging) return;
+    const domRect = wrap.getBoundingClientRect();
+    const stageToDom = stage.width / domRect.width;
+    const stageX = (clientX - domRect.left) * stageToDom;
+    const stageY = (clientY - domRect.top) * stageToDom;
+    wrap.style.cursor = isInsideMacbook(stageX, stageY) ? "move" : "grab";
+  };
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    dragState.current = { isDragging: true, lastX: e.clientX, lastY: e.clientY };
+    const domRect = e.currentTarget.getBoundingClientRect();
+    const stageToDom = stage.width / domRect.width;
+    const stageX = (e.clientX - domRect.left) * stageToDom;
+    const stageY = (e.clientY - domRect.top) * stageToDom;
+    const mode = isInsideMacbook(stageX, stageY) ? "macbook" : "wallpaper";
+    dragState.current = { isDragging: true, mode, lastX: e.clientX, lastY: e.clientY };
+    if (canvasWrapRef.current) {
+      canvasWrapRef.current.style.cursor = mode === "macbook" ? "all-scroll" : "grabbing";
+    }
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState.current.isDragging) return;
+    if (!dragState.current.isDragging) {
+      updateCursorStyle(e.clientX, e.clientY);
+      return;
+    }
     const dx = e.clientX - dragState.current.lastX;
     const dy = e.clientY - dragState.current.lastY;
     dragState.current.lastX = e.clientX;
     dragState.current.lastY = e.clientY;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    // Convert DOM pixels → stage pixels
-    const stageToDomRatio = stage.width / rect.width;
+    const domRect = e.currentTarget.getBoundingClientRect();
+    const stageToDomRatio = stage.width / domRect.width;
     const dxStage = dx * stageToDomRatio;
     const dyStage = dy * stageToDomRatio;
 
     const currentLook = useEditorStore.getState().look;
-    const currentX = (currentLook as any).compositeOffsetX ?? 0;
-    const currentY = (currentLook as any).compositeOffsetY ?? 0;
 
-    // Drag right → MacBook moves right (positive X)
-    useEditorStore.getState().setLook("compositeOffsetX" as any, currentX + dxStage);
-    useEditorStore.getState().setLook("compositeOffsetY" as any, currentY + dyStage);
+    if (dragState.current.mode === "macbook") {
+      // Move the MacBook (and recording) on the wallpaper
+      const curX = (currentLook as any).compositeOffsetX ?? 0;
+      const curY = (currentLook as any).compositeOffsetY ?? 0;
+      useEditorStore.getState().setLook("compositeOffsetX" as any, curX + dxStage);
+      useEditorStore.getState().setLook("compositeOffsetY" as any, curY + dyStage);
+    } else {
+      // Pan the wallpaper (like grabbing and pulling it)
+      const bgScale = (currentLook as any).backgroundScale ?? 3;
+      const maxPanX = (stage.width * (bgScale - 1)) / 2;
+      const maxPanY = (stage.height * (bgScale - 1)) / 2;
+      const curX = (currentLook as any).backgroundPanX ?? 0;
+      const curY = (currentLook as any).backgroundPanY ?? 0;
+      // Drag right → wallpaper moves right → see left side → panX decreases
+      useEditorStore.getState().setLook("backgroundPanX" as any, Math.max(-maxPanX, Math.min(maxPanX, curX - dxStage)));
+      useEditorStore.getState().setLook("backgroundPanY" as any, Math.max(-maxPanY, Math.min(maxPanY, curY - dyStage)));
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     dragState.current.isDragging = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
+    // Restore hover cursor
+    updateCursorStyle(e.clientX, e.clientY);
   };
 
   return (
@@ -738,12 +808,14 @@ export function PreviewStage({
       <div className="@container-size relative min-h-0 flex-1">
         <div className="absolute inset-0 flex items-center justify-center">
           <div
-            className="relative overflow-hidden rounded-xl border border-border bg-black cursor-grab active:cursor-grabbing"
+            ref={canvasWrapRef}
+            className="relative overflow-hidden rounded-xl border border-border bg-black"
             style={{
               aspectRatio: `${stage.width} / ${stage.height}`,
               width: `min(100cqw, calc(100cqh * ${stage.width} / ${stage.height}))`,
               maxHeight: "100cqh",
               touchAction: "none",
+              cursor: "grab",
             }}
             onPointerDownCapture={handlePointerDown}
             onPointerMoveCapture={handlePointerMove}

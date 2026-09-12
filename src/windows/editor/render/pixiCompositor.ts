@@ -137,6 +137,8 @@ export async function createPixiFrameCompositor(
 
   /** Recording-anchored subtree — zoom is a transform on this container. */
   const camera = new Container({ label: "camera" });
+  /** Offset container: lets compositeOffsetX/Y shift the MacBook on the wallpaper. */
+  const contentGroup = new Container({ label: "content" });
 
   const faceRoot = new Container({ label: "face-cam" });
   const faceShadow = new ShadowLayer("face-shadow");
@@ -151,7 +153,14 @@ export async function createPixiFrameCompositor(
   blurLayer.mask = blurMask.graphics;
   const blurSprites: Sprite[] = [];
 
+  // backdrop + wallpaper go directly in camera (they zoom with everything)
+  // content elements go in contentGroup (can be offset for MacBook repositioning)
   camera.addChild(
+    backdrop,
+    background.sprite,
+    contentGroup,
+  );
+  contentGroup.addChild(
     recordingShadow.sprite,
     screenSprite,
     screenMask.graphics,
@@ -161,8 +170,6 @@ export async function createPixiFrameCompositor(
     cursorOverlay.container,
   );
   stage.addChild(
-    backdrop,
-    background.sprite,
     camera,
     faceRoot,
     captionsLayer.sprite,
@@ -233,15 +240,21 @@ export async function createPixiFrameCompositor(
 
     setCameraTransform(CAMERA_IDENTITY);
 
-    const bgScale = look.backgroundScale ?? 3;
+    const bgScale = (look as any).backgroundScale ?? 3;
     const bgWidth = w * bgScale;
     const bgHeight = h * bgScale;
     const bgX = -(bgWidth - w) / 2;
     const bgY = -(bgHeight - h) / 2;
+    // backgroundPanX/Y=0 shows center of wallpaper. Positive X = show right side.
+    // Draw offset = -(half of oversized margin) - panX to center by default.
+    const panX = (look as any).backgroundPanX ?? 0;
+    const panY = (look as any).backgroundPanY ?? 0;
+    const bgCenterOffX = -(bgWidth - w) / 2;
+    const bgCenterOffY = -(bgHeight - h) / 2;
 
     background.update({
       key: backgroundImage
-        ? `${imageId(backgroundImage)}|${bgWidth}x${bgHeight}|${look.backgroundBlur}|${look.backgroundDarkness}`
+        ? `${imageId(backgroundImage)}|${bgWidth}x${bgHeight}|${look.backgroundBlur}|${look.backgroundDarkness}|${panX}|${panY}`
         : null,
       x: bgX,
       y: bgY,
@@ -249,7 +262,8 @@ export async function createPixiFrameCompositor(
       height: bgHeight,
       draw: (ctx) => {
         if (!backgroundImage) return;
-        
+        // bgCenterOffX makes panX=0 show the CENTER of the wallpaper.
+        // panX > 0 = reveal right side; panX < 0 = reveal left side.
         drawBackgroundLayer(
           ctx,
           backgroundImage as CanvasImageSource,
@@ -257,11 +271,18 @@ export async function createPixiFrameCompositor(
           bgHeight,
           look.backgroundBlur,
           look.backgroundDarkness,
+          bgCenterOffX - panX,
+          bgCenterOffY - panY,
         );
       },
     });
     backdrop.visible = inputs.backgroundType === "mockup";
     profiler.mark("background");
+
+    // Apply MacBook-on-wallpaper positioning offset to the content container
+    const compositeOffsetX = (look as any).compositeOffsetX ?? 0;
+    const compositeOffsetY = (look as any).compositeOffsetY ?? 0;
+    contentGroup.position.set(compositeOffsetX, compositeOffsetY);
 
     const screenSize = screenTexture.bind(decodedImageFor(inputs.video));
     profiler.mark("screenUpload");
@@ -402,13 +423,17 @@ export async function createPixiFrameCompositor(
         computeCameraTransform({
           stageWidth: w,
           stageHeight: h,
-          videoRect: rect,
+          // Zoom should track the MacBook's actual rendered position (including compositeOffset)
+          videoRect: {
+            x: rect.x + compositeOffsetX,
+            y: rect.y + compositeOffsetY,
+            width: rect.width,
+            height: rect.height,
+          },
           focus: zoomFocus,
           scale: zoomScale,
           targetScale: zoomTargetScale,
         }),
-        (look as any).compositeOffsetX ?? 0,
-        (look as any).compositeOffsetY ?? 0,
       );
     } else {
       screenSprite.texture = Texture.EMPTY;
@@ -457,9 +482,9 @@ export async function createPixiFrameCompositor(
     }
   }
 
-  function setCameraTransform(transform: CameraTransform, extraX = 0, extraY = 0): void {
+  function setCameraTransform(transform: CameraTransform): void {
     camera.scale.set(transform.scale);
-    camera.position.set(transform.x + extraX, transform.y + extraY);
+    camera.position.set(transform.x, transform.y);
   }
 
   function updateRecordingShadow(

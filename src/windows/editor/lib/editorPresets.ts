@@ -113,6 +113,16 @@ function normalizeLook(raw: unknown): LookParams {
       0,
       100,
     ),
+    backgroundScale: clampLookNumber(
+      d.backgroundScale,
+      DEFAULT_LOOK.backgroundScale,
+      1,
+      10,
+    ),
+    backgroundPanX: clampLookNumber(d.backgroundPanX, DEFAULT_LOOK.backgroundPanX, -99999, 99999),
+    backgroundPanY: clampLookNumber(d.backgroundPanY, DEFAULT_LOOK.backgroundPanY, -99999, 99999),
+    compositeOffsetX: clampLookNumber(d.compositeOffsetX, DEFAULT_LOOK.compositeOffsetX, -99999, 99999),
+    compositeOffsetY: clampLookNumber(d.compositeOffsetY, DEFAULT_LOOK.compositeOffsetY, -99999, 99999),
   };
 }
 

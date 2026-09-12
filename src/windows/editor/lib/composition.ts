@@ -49,6 +49,8 @@ export const DEFAULT_LOOK = {
   backgroundBlur: 9,
   backgroundDarkness: 15,
   backgroundScale: 3,
+  backgroundPanX: 0,
+  backgroundPanY: 0,
   compositeOffsetX: 0,
   compositeOffsetY: 0,
 } as const;

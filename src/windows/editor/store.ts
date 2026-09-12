@@ -117,6 +117,8 @@ export interface LookParams {
   backgroundBlur: number;
   backgroundDarkness: number;
   backgroundScale: number;
+  backgroundPanX: number;
+  backgroundPanY: number;
   compositeOffsetX: number;
   compositeOffsetY: number;
 }
